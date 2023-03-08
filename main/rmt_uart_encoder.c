@@ -35,7 +35,7 @@ static size_t rmt_encode_uart(rmt_encoder_t *encoder, rmt_channel_handle_t chann
     size_t encoded_symbols = 0;
     const uint8_t * data = (const uint8_t *) primary_data;
 
-    while (ir_uart->data_offset < data_size){
+    while (state == 0) {
 
         switch (ir_uart->state) {
 
@@ -44,10 +44,6 @@ static size_t rmt_encode_uart(rmt_encoder_t *encoder, rmt_channel_handle_t chann
                 if (session_state & RMT_ENCODING_COMPLETE) {
                     ir_uart->state = RMT_UART_ENCODER_DATA;
                 }
-                if (session_state & RMT_ENCODING_MEM_FULL) {
-                    state |= RMT_ENCODING_MEM_FULL;
-                    goto out; // yield if there's no free space for encoding artifacts
-                }
                 break;
 
             case RMT_UART_ENCODER_DATA:
@@ -55,22 +51,18 @@ static size_t rmt_encode_uart(rmt_encoder_t *encoder, rmt_channel_handle_t chann
                 if (session_state & RMT_ENCODING_COMPLETE) {
                     ir_uart->state = RMT_UART_ENCODER_STOP_BIT;
                 }
-                if (session_state & RMT_ENCODING_MEM_FULL) {
-                    state |= RMT_ENCODING_MEM_FULL;
-                    goto out; // yield if there's no free space for encoding artifacts
-                }
                 break;
 
             case RMT_UART_ENCODER_STOP_BIT:
                 encoded_symbols += copy_encoder->encode(copy_encoder, channel, &ir_uart->bit_1, sizeof(ir_uart->bit_1), &session_state);
-
                 if (session_state & RMT_ENCODING_COMPLETE) {
                     ir_uart->state = RMT_UART_ENCODER_START_BIT;
                     ir_uart->data_offset++;
-                }
-                if (session_state & RMT_ENCODING_MEM_FULL) {
-                    state |= RMT_ENCODING_MEM_FULL;
-                    goto out; // yield if there's no free space for encoding artifacts
+                    // we're done after the stop bit for the last bytes was encoded
+                    if (ir_uart->data_offset >= data_size){
+                        ir_uart->data_offset = 0;
+                        state = RMT_ENCODING_COMPLETE;
+                    }
                 }
                 break;
 
@@ -78,13 +70,13 @@ static size_t rmt_encode_uart(rmt_encoder_t *encoder, rmt_channel_handle_t chann
                 break;
 
         }
+
+        // yield if there's no free space for encoding artifacts
+        if (session_state & RMT_ENCODING_MEM_FULL) {
+            state |= RMT_ENCODING_COMPLETE;
+        }
     }
 
-    // done
-    ir_uart->data_offset = 0;
-    state |= RMT_ENCODING_COMPLETE;
-
-out:
     *ret_state = state;
     return encoded_symbols;
 }
