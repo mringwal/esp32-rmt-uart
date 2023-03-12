@@ -41,13 +41,13 @@ void app_main(void)
         .flags.polarity_active_low = false, // carrier should modulated to high level
     };
     // modulate carrier to TX channel
-    ESP_ERROR_CHECK(rmt_apply_carrier(ir_uart_channel, &tx_carrier_cfg));
+    ESP_ERROR_CHECK(rmt_apply_carrier(rmt_uart_channel, &tx_carrier_cfg));
     uint8_t level_idle = 0;
 #else
     uint8_t level_idle = 1;
 #endif
 
-    ESP_LOGI(TAG, "Install IR UART encoder");
+    ESP_LOGI(TAG, "Install UART encoder");
     rmt_encoder_handle_t rmt_uart = NULL;
     rmt_uart_encoder_config_t encoder_config = {
         .resolution = RMT_UART_RESOLUTION_HZ,
